@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
+import { isAuthenticated, registerAuthRoutes, getUserId } from "./clerk-auth";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { registerSEORoutes } from "./seo-routes";
@@ -18,7 +18,7 @@ export async function registerRoutes(
   registerSEORoutes(app);
 
   // Auth setup
-  await setupAuth(app);
+  
   registerAuthRoutes(app);
 
   // Object Storage routes for file uploads
@@ -89,7 +89,7 @@ export async function registerRoutes(
 
   // Get current creator profile
   app.get(api.creators.me.path, isAuthenticated, async (req, res) => {
-    const userId = (req.user as any).claims.sub;
+    const userId = getUserId(req);
     const creator = await storage.getCreatorByUserId(userId);
     if (!creator) {
       return res.status(404).json({ message: "Profile not found" });
@@ -99,7 +99,7 @@ export async function registerRoutes(
 
   // Update/Create current creator profile
   app.post(api.creators.updateMe.path, isAuthenticated, async (req, res) => {
-    const userId = (req.user as any).claims.sub;
+    const userId = getUserId(req);
     try {
       const input = api.creators.updateMe.input.parse(req.body);
       
@@ -130,7 +130,7 @@ export async function registerRoutes(
 
   // Brand Routes
   app.get(api.brands.me.path, isAuthenticated, async (req, res) => {
-    const userId = (req.user as any).claims.sub;
+    const userId = getUserId(req);
     const brand = await storage.getBrandByUserId(userId);
     if (!brand) {
       return res.status(404).json({ message: "Brand profile not found" });
@@ -139,7 +139,7 @@ export async function registerRoutes(
   });
 
   app.post(api.brands.updateMe.path, isAuthenticated, async (req, res) => {
-    const userId = (req.user as any).claims.sub;
+    const userId = getUserId(req);
     try {
       const input = api.brands.updateMe.input.parse(req.body);
       const existing = await storage.getBrandByUserId(userId);
@@ -179,7 +179,7 @@ export async function registerRoutes(
 
   // Brand tier feature endpoints
   app.get("/api/brands/tier/features", isAuthenticated, async (req, res) => {
-    const userId = (req.user as any).claims.sub;
+    const userId = getUserId(req);
     const brand = await storage.getBrandByUserId(userId);
     if (!brand) {
       return res.status(404).json({ message: "Brand profile not found" });
@@ -203,7 +203,7 @@ export async function registerRoutes(
   });
   
   app.post("/api/brands/tier/upgrade", isAuthenticated, async (req, res) => {
-    const userId = (req.user as any).claims.sub;
+    const userId = getUserId(req);
     
     // Validate input
     const parseResult = tierUpgradeSchema.safeParse(req.body);
@@ -256,19 +256,19 @@ export async function registerRoutes(
 
   // Message Routes
   app.get(api.messages.inbox.path, isAuthenticated, async (req, res) => {
-    const userId = (req.user as any).claims.sub;
+    const userId = getUserId(req);
     const messages = await storage.getMessages(userId);
     res.json(messages);
   });
 
   app.get(api.messages.sent.path, isAuthenticated, async (req, res) => {
-    const userId = (req.user as any).claims.sub;
+    const userId = getUserId(req);
     const messages = await storage.getSentMessages(userId);
     res.json(messages);
   });
 
   app.post(api.messages.send.path, isAuthenticated, async (req, res) => {
-    const userId = (req.user as any).claims.sub;
+    const userId = getUserId(req);
     try {
       const input = api.messages.send.input.parse(req.body);
       
@@ -310,7 +310,7 @@ export async function registerRoutes(
   });
 
   app.post("/api/messages/:id/read", isAuthenticated, async (req, res) => {
-    const userId = (req.user as any).claims.sub;
+    const userId = getUserId(req);
     const idParam = req.params.id;
     const id = parseInt(typeof idParam === 'string' ? idParam : idParam[0]);
     const message = await storage.markMessageRead(id, userId);
@@ -322,19 +322,19 @@ export async function registerRoutes(
 
   // Notification Routes
   app.get(api.notifications.list.path, isAuthenticated, async (req, res) => {
-    const userId = (req.user as any).claims.sub;
+    const userId = getUserId(req);
     const notifications = await storage.getNotifications(userId);
     res.json(notifications);
   });
 
   app.get(api.notifications.unreadCount.path, isAuthenticated, async (req, res) => {
-    const userId = (req.user as any).claims.sub;
+    const userId = getUserId(req);
     const count = await storage.getUnreadCount(userId);
     res.json({ count });
   });
 
   app.post("/api/notifications/:id/read", isAuthenticated, async (req, res) => {
-    const userId = (req.user as any).claims.sub;
+    const userId = getUserId(req);
     const idParam = req.params.id;
     const id = parseInt(typeof idParam === 'string' ? idParam : idParam[0]);
     const notification = await storage.markNotificationRead(id, userId);
@@ -345,14 +345,14 @@ export async function registerRoutes(
   });
 
   app.post(api.notifications.markAllRead.path, isAuthenticated, async (req, res) => {
-    const userId = (req.user as any).claims.sub;
+    const userId = getUserId(req);
     await storage.markAllNotificationsRead(userId);
     res.json({ success: true });
   });
 
   // Review Routes
   app.post(api.reviews.create.path, isAuthenticated, async (req, res) => {
-    const userId = (req.user as any).claims.sub;
+    const userId = getUserId(req);
     try {
       const input = api.reviews.create.input.parse(req.body);
       
@@ -418,7 +418,7 @@ export async function registerRoutes(
   });
 
   app.get(api.reviews.myReviews.path, isAuthenticated, async (req, res) => {
-    const userId = (req.user as any).claims.sub;
+    const userId = getUserId(req);
     const reviews = await storage.getReviewsByReviewer(userId);
     res.json(reviews);
   });
@@ -431,7 +431,7 @@ export async function registerRoutes(
   });
 
   app.delete(api.reviews.delete.path, isAuthenticated, async (req, res) => {
-    const userId = (req.user as any).claims.sub;
+    const userId = getUserId(req);
     const idParam = req.params.id;
     const id = parseInt(typeof idParam === 'string' ? idParam : idParam[0]);
     const deleted = await storage.deleteReview(id, userId);
@@ -482,7 +482,7 @@ export async function registerRoutes(
   });
 
   app.post("/paypal/order", isAuthenticated, async (req, res) => {
-    const userId = (req.user as any).claims.sub;
+    const userId = getUserId(req);
     const { amount, currency, intent, recipientUserId, description } = req.body;
     
     // Store temporary data for when we capture the order
@@ -497,7 +497,7 @@ export async function registerRoutes(
 
   // Secure capture endpoint that also records the transaction server-side
   app.post("/paypal/order/:orderID/capture", isAuthenticated, async (req, res) => {
-    const userId = (req.user as any).claims.sub;
+    const userId = getUserId(req);
     const orderID = req.params.orderID as string;
     const { recipientUserId, description } = req.body;
     
@@ -590,7 +590,7 @@ export async function registerRoutes(
   // Get user's transactions
   app.get("/api/transactions", isAuthenticated, async (req, res) => {
     try {
-      const userId = (req.user as any).claims.sub;
+      const userId = getUserId(req);
       const transactions = await storage.getTransactionsByUser(userId);
       res.json(transactions);
     } catch (error: any) {
@@ -630,7 +630,7 @@ export async function registerRoutes(
   // Get my campaigns (for brands)
   app.get("/api/campaigns/my/list", isAuthenticated, async (req, res) => {
     try {
-      const userId = (req.user as any).claims.sub;
+      const userId = getUserId(req);
       const campaigns = await storage.getCampaignsByBrand(userId);
       res.json(campaigns);
     } catch (error: any) {
@@ -642,7 +642,7 @@ export async function registerRoutes(
   // Create a campaign (brands only)
   app.post("/api/campaigns", isAuthenticated, async (req, res) => {
     try {
-      const userId = (req.user as any).claims.sub;
+      const userId = getUserId(req);
       
       // Check if user has a brand profile
       const brand = await storage.getBrandByUserId(userId);
@@ -667,7 +667,7 @@ export async function registerRoutes(
   // Update a campaign
   app.patch("/api/campaigns/:id", isAuthenticated, async (req, res) => {
     try {
-      const userId = (req.user as any).claims.sub;
+      const userId = getUserId(req);
       const idParam = req.params.id;
       const id = parseInt(Array.isArray(idParam) ? idParam[0] : idParam);
 
@@ -685,7 +685,7 @@ export async function registerRoutes(
   // Delete a campaign
   app.delete("/api/campaigns/:id", isAuthenticated, async (req, res) => {
     try {
-      const userId = (req.user as any).claims.sub;
+      const userId = getUserId(req);
       const idParam = req.params.id;
       const id = parseInt(Array.isArray(idParam) ? idParam[0] : idParam);
 
